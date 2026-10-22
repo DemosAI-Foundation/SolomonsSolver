@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solomon — Three-Tier Intelligence Agent</title>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #1c2333; --border: #30363d;
+  --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+  --lightning: #e3b341; --deep: #58a6ff; --omega: #bc8cff;
+  --pass: #3fb950; --revise: #d29922; --fail: #f85149;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+header h1 { font-size: 16px; font-weight: 600; }
+header h1 .bolt { color: var(--lightning); }
+#metrics-strip { display: flex; gap: 14px; margin-left: auto; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+#metrics-strip b { color: var(--text); font-family: var(--mono); }
+main { flex: 1; display: grid; grid-template-columns: minmax(380px, 5fr) minmax(380px, 4fr); gap: 0; min-height: 0; }
+/* ---------- chat pane ---------- */
+#chat-pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); min-height: 0; }
+#chat-messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.msg { max-width: 92%; padding: 10px 14px; border-radius: 10px; white-space: pre-wrap; word-wrap: break-word; }
+.msg.user { align-self: flex-end; background: #1f6feb33; border: 1px solid #1f6feb66; border-bottom-right-radius: 2px; }
+.msg.agent { align-self: flex-start; background: var(--bg3); border: 1px solid var(--border); border-bottom-left-radius: 2px; width: 92%; max-width: 92%; }
+.msg .meta { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge.lightning { background: #e3b34122; color: var(--lightning); border: 1px solid #e3b34155; }
+.badge.deep { background: #58a6ff22; color: var(--deep); border: 1px solid #58a6ff55; }
+.badge.omega { background: #bc8cff22; color: var(--omega); border: 1px solid #bc8cff55; }
+.badge.pass { background: #3fb95022; color: var(--pass); border: 1px solid #3fb95055; }
+.badge.revise { background: #d2992222; color: var(--revise); border: 1px solid #d2992255; }
+.badge.fail { background: #f8514922; color: var(--fail); border: 1px solid #f8514955; }
+.chip { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--bg2); border: 1px solid var(--border); font-size: 10px; color: var(--muted); margin-right: 4px; }
+#chat-input-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg2); }
+#chat-input { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: none; height: 44px; font-family: inherit; }
+#chat-input:focus { outline: none; border-color: var(--accent); }
+#send-btn { background: #238636; color: white; border: none; border-radius: 8px; padding: 0 20px; font-size: 14px; font-weight: 600; cursor: pointer; }
+#send-btn:disabled { background: var(--bg3); color: var(--muted); cursor: not-allowed; }
+/* ---------- trace pane ---------- */
+#trace-pane { display: flex; flex-direction: column; min-height: 0; background: var(--bg2); }
+#tabs { display: flex; border-bottom: 1px solid var(--border); }
+.tab { padding: 10px 18px; cursor: pointer; color: var(--muted); font-size: 13px; border-bottom: 2px solid transparent; user-select: none; }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab-content { flex: 1; overflow-y: auto; padding: 14px; display: none; min-height: 0; }
+.tab-content.active { display: block; }
+#trace-status { font-size: 12px; color: var(--muted); padding: 4px 2px 10px; font-family: var(--mono); }
+.phase { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); overflow: hidden; }
+.phase-head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; background: var(--bg3); font-size: 12px; }
+.phase-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.phase.running .phase-head .dot { background: var(--accent); animation: pulse 1.2s infinite; }
+.phase.done .phase-head .dot { background: var(--pass); }
+.phase.error .phase-head .dot { background: var(--fail); }
+@keyframes pulse { 50% { opacity: 0.3; } }
+.phase-head .name { font-weight: 600; font-family: var(--mono); }
+.phase-head .dur { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.phase-body { display: none; padding: 10px 12px; font-size: 12px; max-height: 320px; overflow-y: auto; }
+.phase.open .phase-body { display: block; }
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 3px 10px; margin-bottom: 8px; }
+.kv .k { color: var(--muted); }
+.kv .v { font-family: var(--mono); word-break: break-word; }
+.issue { color: var(--fail); margin: 2px 0 2px 12px; list-style: disc; }
+.issue.fix { color: var(--pass); }
+.sub { margin: 4px 0 4px 10px; padding: 4px 8px; background: var(--bg2); border-left: 2px solid var(--border); border-radius: 0 6px 6px 0; font-family: var(--mono); font-size: 11px; word-break: break-word; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 11px; }
+.bar-row .label { width: 150px; color: var(--muted); }
+.bar { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); }
+.bar-row .val { width: 34px; text-align: right; font-family: var(--mono); }
+.esc { color: var(--revise); font-weight: 600; }
+.err { color: var(--fail); font-family: var(--mono); }
+/* tasks tab */
+.task-row { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: var(--bg); font-size: 12px; }
+.task-row:hover { border-color: var(--accent); }
+.task-row .t-top { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.task-row .t-id { font-family: var(--mono); color: var(--muted); font-size: 11px; }
+.task-row .t-prompt { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* metrics tab */
+table.metrics { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+table.metrics th, table.metrics td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+table.metrics th { color: var(--muted); font-weight: 500; }
+table.metrics td { font-family: var(--mono); }
+h3.section { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 8px; }
+pre.cost { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 11px; overflow-x: auto; }
+/* ---------- mode select ---------- */
+#mode-select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; cursor: pointer; }
+#mode-select:focus { outline: none; border-color: var(--accent); }
+/* ---------- control bar (FINISH NOW / STOP / confidence) ---------- */
+#control-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-top: 1px solid var(--border); background: var(--bg3); font-size: 12px; }
+#control-bar.hidden { display: none; }
+#control-bar .spacer { flex: 1; }
+#confidence-indicator { display: flex; align-items: center; gap: 7px; font-family: var(--mono); color: var(--muted); }
+.conf-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.conf-dot.high { background: var(--pass); box-shadow: 0 0 6px var(--pass); }
+.conf-dot.medium { background: var(--revise); box-shadow: 0 0 6px var(--revise); }
+.conf-dot.low { background: var(--fail); box-shadow: 0 0 6px var(--fail); }
+#conf-label b { color: var(--text); }
+#finish-btn { background: #1f6feb; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+#finish-btn:disabled { background: var(--bg2); color: var(--muted); cursor: not-allowed; }
+#stop-btn { background: transparent; color: var(--fail); border: 1px solid var(--fail); border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+#stop-btn:hover { background: #f8514922; }
+/* ---------- llm call blocks (prompts / thinking / output) ---------- */
+.llm-block { margin: 7px 0; }
+.llm-block .llm-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 3px; }
+.llm-block .llm-content { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: var(--mono); font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow-y: auto; }
+.llm-block .llm-content.thinking { border-left: 2px solid var(--omega); }
+.llm-block .llm-content.answer { border-left: 2px solid var(--pass); }
+.llm-block .llm-content.system { border-left: 2px solid var(--accent); }
+.llm-sep { border-top: 1px dashed var(--border); margin: 10px 0; }
+/* ---------- early completion / aborted badges ---------- */
+.badge.early { background: #3fb95022; color: var(--pass); border: 1px solid #3fb95055; }
+.badge.aborted { background: #f8514922; color: var(--fail); border: 1px solid #f8514955; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="bolt">&#9889;</span> Solomon &mdash; Three-Tier Intelligence Agent</h1>
+  <div id="metrics-strip">
+    <span>tasks <b id="m-tasks">0</b></span>
+    <span>lightning <b id="m-l">0</b></span>
+    <span>deep <b id="m-d">0</b></span>
+    <span>omega <b id="m-o">0</b></span>
+    <span>critique pass <b id="m-pass">-</b></span>
+    <span>escalations <b id="m-esc">0</b></span>
+  </div>
+</header>
+<main>
+  <section id="chat-pane">
+    <div id="chat-messages"></div>
+    <div id="control-bar" class="hidden">
+      <div id="confidence-indicator">
+        <span class="conf-dot" id="conf-dot"></span>
+        <span id="conf-label">confidence: —</span>
+      </div>
+      <div class="spacer"></div>
+      <button id="finish-btn" disabled>FINISH NOW</button>
+      <button id="stop-btn">STOP</button>
+    </div>
+    <div id="chat-input-row">
+      <select id="mode-select" title="Reasoning tier">
+        <option value="auto">auto</option>
+        <option value="lightning">lightning</option>
+        <option value="deep">deep</option>
+        <option value="omega">omega</option>
+      </select>
+      <textarea id="chat-input" placeholder="Describe a task… (Enter to send, Shift+Enter for newline)"></textarea>
+      <button id="send-btn">Send</button>
+    </div>
+  </section>
+  <section id="trace-pane">
+    <div id="tabs">
+      <div class="tab active" data-tab="trace">Live Trace</div>
+      <div class="tab" data-tab="tasks">Tasks</div>
+      <div class="tab" data-tab="metrics">Metrics</div>
+    </div>
+    <div class="tab-content active" id="tab-trace">
+      <div id="trace-status">idle — no active task</div>
+      <div id="trace-root"></div>
+    </div>
+    <div class="tab-content" id="tab-tasks"><div id="task-list"></div></div>
+    <div class="tab-content" id="tab-metrics"><div id="metrics-root"></div></div>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const chatMessages = $("#chat-messages");
+const chatInput = $("#chat-input");
+const sendBtn = $("#send-btn");
+const traceRoot = $("#trace-root");
+const traceStatus = $("#trace-status");
+let ws = null;
+let currentTaskId = null;
+const phaseEls = {};
+const controlBar = $("#control-bar");
+const confDot = $("#conf-dot");
+const confLabel = $("#conf-label");
+const finishBtn = $("#finish-btn");
+const stopBtn = $("#stop-btn");
+const modeSelect = $("#mode-select");
+let taskRunning = false;
+let stepsDone = 0, stepsTotal = 0, finishEligible = false, confValue = null, confLevel = "";
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+function fmtDur(ms) { return ms >= 1000 ? (ms/1000).toFixed(2) + "s" : Math.round(ms) + "ms"; }
+function tierBadge(t) { return `<span class="badge ${esc(t)}">${esc(t)}</span>`; }
+
+/* ---------- chat ---------- */
+function addMsg(role, html) {
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  div.innerHTML = html;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return div;
+}
+function addUserMsg(text) { addMsg("user", esc(text)); }
+
+function addAgentMsg(result, taskType, complexity) {
+  const earlyBadge = result.early_completion ? `<span class="badge early">early completion</span>` : "";
+  const abortedBadge = result.aborted ? `<span class="badge aborted">aborted</span>` : "";
+  const meta = `<div class="meta">${tierBadge(result.tier || "?")}
+    ${result.escalated_from ? `<span class="esc">escalated from ${esc(result.escalated_from)}</span>` : ""}
+    ${earlyBadge}${abortedBadge}
+    <span>${fmtDur(result.total_latency * 1000)}</span>
+    <span>$${(result.total_cost || 0).toFixed(4)}</span>
+    <span>${result.tokens_prompt || 0}/${result.tokens_completion || 0} tok</span>
+    <span>${result.iterations || 0} iter</span>
+    ${taskType ? `<span class="chip">${esc(taskType)}</span>` : ""}
+    ${complexity != null ? `<span class="chip">cx ${Number(complexity).toFixed(2)}</span>` : ""}
+  </div>`;
+  const chips = (result.techniques_used || []).map(t => `<span class="chip">${esc(t)}</span>`).join("");
+  const verdicts = (result.critique_history || []).map(c =>
+    `<span class="badge ${esc(c.verdict)}">critique: ${esc(c.verdict)}</span>`).join(" ");
+  const body = result.failed
+    ? `<div class="err">FAILED: ${esc(result.error)}</div>`
+    : esc(result.final_answer);
+  addMsg("agent", meta + (chips ? `<div style="margin-bottom:8px">${chips}</div>` : "") +
+    (verdicts ? `<div style="margin-bottom:8px">${verdicts}</div>` : "") + body);
+}
+
+/* ---------- trace rendering ---------- */
+function setStatus(text) { traceStatus.textContent = text; }
+
+function updateControlBar() {
+  if (!taskRunning) { controlBar.classList.add("hidden"); return; }
+  controlBar.classList.remove("hidden");
+  confDot.className = "conf-dot" + (confLevel ? " " + confLevel : "");
+  if (confValue != null) {
+    confLabel.innerHTML = `confidence: <b>${Number(confValue).toFixed(2)}</b> (${confLevel || "?"})` +
+      (stepsTotal ? ` · ${stepsDone}/${stepsTotal} steps` : "");
+  } else {
+    confLabel.textContent = stepsTotal ? `running · ${stepsDone}/${stepsTotal} steps` : "running…";
+  }
+  if (finishEligible) {
+    finishBtn.disabled = false;
+    finishBtn.textContent = stepsTotal ? `FINISH NOW (${stepsDone}/${stepsTotal} steps)` : "FINISH NOW";
+  } else {
+    finishBtn.disabled = true;
+    finishBtn.textContent = "FINISH NOW (not ready)";
+  }
+}
+
+function openPhase(name, data) {
+  closeAllPhases();
+  const el = document.createElement("div");
+  el.className = "phase running";
+  el.innerHTML = `<div class="phase-head"><span class="dot"></span><span class="name">${esc(name)}</span><span class="dur"></span></div><div class="phase-body"></div>`;
+  el.querySelector(".phase-head").addEventListener("click", () => el.classList.toggle("open"));
+  el.classList.add("open");
+  traceRoot.appendChild(el);
+  phaseEls[name] = { el, start: Date.now() / 1000, body: el.querySelector(".phase-body") };
+  if (data) renderPhaseData(name, data);
+  traceRoot.scrollTop = traceRoot.scrollHeight;
+}
+function closeAllPhases() {
+  for (const k in phaseEls) {
+    if (phaseEls[k].el.classList.contains("running")) {
+      phaseEls[k].el.classList.remove("running");
+      phaseEls[k].el.classList.add("done");
+    }
+    phaseEls[k].el.classList.remove("open");
+  }
+}
+function renderPhaseData(name, data) {
+  const p = phaseEls[name];
+  if (!p || !data) return;
+  if (data.sub_problems) {
+    for (const [i, sp] of data.sub_problems.entries())
+      p.body.insertAdjacentHTML("beforeend", `<div class="sub">${i+1}. ${esc(sp)}</div>`);
+  }
+  if (data.core_requirements) {
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">requirements</div><div class="v">${data.core_requirements.map(esc).join("<br>")}</div></div>`);
+  }
+  if (data.factors) {
+    let bars = "";
+    for (const [k, v] of Object.entries(data.factors))
+      bars += `<div class="bar-row"><span class="label">${esc(k)}</span><div class="bar"><div style="width:${Math.round(v*100)}%"></div></div><span class="val">${Number(v).toFixed(2)}</span></div>`;
+    p.body.insertAdjacentHTML("beforeend", bars);
+  }
+  if (data.strategies) {
+    for (const s of data.strategies)
+      p.body.insertAdjacentHTML("beforeend", `<div class="sub">${esc(s.sub_problem)} [${esc(s.reasoning_type)}]${s.use_tree_of_thoughts ? " <b>→ ToT</b>" : ""}${s.use_analogical ? " (analogical)" : ""}</div>`);
+  }
+  if (data.answer != null && data.answer !== "")
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">answer</div><div class="v">${esc(String(data.answer).slice(0, 2000))}</div></div>`);
+  if (data.output)
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">output</div><div class="v">${esc(String(data.output).slice(0, 2000))}</div></div>`);
+  if (data.consensus)
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">consensus</div><div class="v">${esc(data.consensus)} (conf ${Number(data.confidence || 0).toFixed(2)})</div></div>`);
+  if (data.revised_answer)
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">revised answer</div><div class="v">${esc(String(data.revised_answer).slice(0, 2000))}</div></div>`);
+  if (data.inconsistencies && data.inconsistencies.length)
+    p.body.insertAdjacentHTML("beforeend", `<ul>${data.inconsistencies.map(i => `<li class="issue">${esc(i)}</li>`).join("")}</ul>`);
+  if (data.questions)
+    for (const q of data.questions) p.body.insertAdjacentHTML("beforeend", `<div class="sub">Q: ${esc(q)}</div>`);
+  if (data.question)
+    p.body.insertAdjacentHTML("beforeend", `<div class="sub">Q: ${esc(data.question)}<br>A: ${esc(data.answer || "")}</div>`);
+  if (data.latency != null)
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">latency</div><div class="v">${fmtDur(data.latency * 1000)}</div></div>`);
+}
+function renderCritique(name, data) {
+  let p = phaseEls[name];
+  if (!p) { openPhase(name); p = phaseEls[name]; }
+  p.body.insertAdjacentHTML("beforeend",
+    `<div class="kv"><div class="k">verdict</div><div class="v"><span class="badge ${esc(data.verdict)}">${esc(data.verdict)}</span> ${data.adversarial ? "(adversarial)" : ""} conf=${Number(data.confidence || 0).toFixed(2)}</div></div>` +
+    (data.issues && data.issues.length ? `<ul>${data.issues.map(i => `<li class="issue">${esc(i)}</li>`).join("")}</ul>` : ""));
+  if (data.audit_dimensions) {
+    let bars = "";
+    for (const [k, v] of Object.entries(data.audit_dimensions))
+      bars += `<div class="bar-row"><span class="label">${esc(k)}</span><div class="bar"><div style="width:${Math.round(v*100)}%"></div></div><span class="val">${Number(v).toFixed(2)}</span></div>`;
+    p.body.insertAdjacentHTML("beforeend", bars);
+  }
+  traceRoot.scrollTop = traceRoot.scrollHeight;
+}
+function renderDebate(name, data) {
+  let p = phaseEls[name];
+  if (!p) { openPhase(name); p = phaseEls[name]; }
+  if (data.challenges)
+    p.body.insertAdjacentHTML("beforeend", `<ul>${data.challenges.map(c => `<li class="issue">${esc(c)}</li>`).join("")}</ul>`);
+  if (data.synthesis)
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">synthesis</div><div class="v">${esc(data.synthesis)}</div></div>`);
+  traceRoot.scrollTop = traceRoot.scrollHeight;
+}
+function renderSub(name, data) {
+  let p = phaseEls[name];
+  if (!p) { openPhase(name); p = phaseEls[name]; }
+  if (data.thought)
+    p.body.insertAdjacentHTML("beforeend", `<div class="sub">score=${data.score} :: ${esc(data.thought)}</div>`);
+  if (data.answers)
+    p.body.insertAdjacentHTML("beforeend", `<div class="sub">${data.answers.map((a, i) => `#${i+1}: ${esc(a)}`).join("<br>")}</div>`);
+  traceRoot.scrollTop = traceRoot.scrollHeight;
+}
+function llmBlock(label, text, cls) {
+  return `<div class="llm-block"><div class="llm-label">${esc(label)}</div><div class="llm-content ${cls}">${esc(String(text))}</div></div>`;
+}
+function leafPhase(name) {
+  let p = phaseEls[name];
+  if (p) return p;
+  const el = document.createElement("div");
+  el.className = "phase done";
+  el.innerHTML = `<div class="phase-head"><span class="dot"></span><span class="name">${esc(name)}</span><span class="dur"></span></div><div class="phase-body"></div>`;
+  el.querySelector(".phase-head").addEventListener("click", () => el.classList.toggle("open"));
+  traceRoot.appendChild(el);
+  p = { el, start: Date.now() / 1000, body: el.querySelector(".phase-body") };
+  phaseEls[name] = p;
+  return p;
+}
+function renderLlmCall(phase, data) {
+  const p = leafPhase(phase);
+  let html = "";
+  if (data.system) html += llmBlock("system prompt", data.system, "system");
+  if (data.prompt) html += llmBlock("prompt", data.prompt, "");
+  if (data.trace) html += llmBlock("reasoning / thinking", data.trace, "thinking");
+  if (data.answer != null && data.answer !== "") html += llmBlock("output", data.answer, "answer");
+  if (data.prompt_tokens != null)
+    html += `<div class="kv"><div class="k">tokens</div><div class="v">${data.prompt_tokens}/${data.completion_tokens} (${esc(data.finish_reason || "")})</div></div>`;
+  p.body.insertAdjacentHTML("beforeend", html);
+  traceRoot.scrollTop = traceRoot.scrollHeight;
+}
+function renderEvent(ev) {
+  const { phase, event_type: type, data } = ev;
+  if (type === "phase_start") openPhase(phase, data);
+  else if (type === "phase_end") {
+    const p = phaseEls[phase];
+    if (p) {
+      p.el.classList.remove("running"); p.el.classList.add("done");
+      const dur = (Date.now() / 1000 - p.start);
+      p.el.querySelector(".dur").textContent = fmtDur(dur * 1000);
+      renderPhaseData(phase, data);
+      p.el.classList.add("open");
+    }
+  }
+  else if (type === "critique") renderCritique(phase, data);
+  else if (type === "debate") renderDebate(phase, data);
+  else if (type === "complexity") { let p = phaseEls["router"]; if (!p) { openPhase("router"); p = phaseEls["router"]; } renderPhaseData("router", data); }
+  else if (type === "tot_node" || type === "consistency") renderSub(phase, data);
+  else if (type === "escalation") {
+    let p = phaseEls["router"]; if (!p) { openPhase("router"); p = phaseEls["router"]; }
+    p.body.insertAdjacentHTML("beforeend", `<div class="kv"><div class="k">escalation</div><div class="v esc">${esc(data.from_tier)} → ${esc(data.to_tier)}: ${esc(data.reason || "")}</div></div>`);
+  }
+  else if (type === "error") {
+    let p = phaseEls[phase]; if (!p) { openPhase(phase); p = phaseEls[phase]; }
+    p.el.classList.remove("running"); p.el.classList.add("error");
+    p.body.insertAdjacentHTML("beforeend", `<div class="err">${esc(data.error || "error")}</div>`);
+  }
+  else if (type === "confidence") {
+    if (data.confidence != null) confValue = Number(data.confidence);
+    confLevel = data.level || "";
+    finishEligible = !!data.finish_now_eligible;
+    if (data.steps_done != null) stepsDone = data.steps_done;
+    if (data.steps_total != null) stepsTotal = data.steps_total;
+    updateControlBar();
+  }
+  else if (type === "progress") {
+    if (data.steps_done != null) stepsDone = data.steps_done;
+    if (data.steps_total != null) stepsTotal = data.steps_total;
+    updateControlBar();
+  }
+  else if (type === "llm_call") {
+    renderLlmCall(phase, data);
+  }
+  else if (type === "result") {
+    taskRunning = false;
+    updateControlBar();
+    sendBtn.disabled = false;
+    setStatus(`task ${currentTaskId} finished`);
+    addAgentMsg(data, data.task_type, data.complexity);
+    refreshTasks(); refreshMetrics();
+    if (ws) { ws.close(); ws = null; }
+  }
+  else {
+    let p = phaseEls[phase]; if (!p) { openPhase(phase); p = phaseEls[phase]; }
+    p.body.insertAdjacentHTML("beforeend", `<div class="sub">${esc(JSON.stringify(data).slice(0, 400))}</div>`);
+  }
+}
+
+/* ---------- websocket ---------- */
+function connectWs(taskId) {
+  if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws/${taskId}`);
+  ws.onmessage = (m) => {
+    const msg = JSON.parse(m.data);
+    if (msg.type === "history") msg.events.forEach(renderEvent);
+    else if (msg.type === "event") renderEvent(msg.event);
+  };
+  ws.onclose = () => { if (currentTaskId === taskId) setStatus("stream ended"); };
+}
+
+/* ---------- send ---------- */
+async function send() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = "";
+  sendBtn.disabled = true;
+  addUserMsg(text);
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, mode: modeSelect.value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    currentTaskId = data.task_id;
+    traceRoot.innerHTML = "";
+    for (const k in phaseEls) delete phaseEls[k];
+    taskRunning = true;
+    stepsDone = 0; stepsTotal = 0; finishEligible = false; confValue = null; confLevel = "";
+    updateControlBar();
+    setStatus(`task ${data.task_id} running…`);
+    connectWs(data.task_id);
+  } catch (e) {
+    addMsg("agent", `<div class="err">request failed: ${esc(e.message)}</div>`);
+    sendBtn.disabled = false;
+  }
+}
+sendBtn.addEventListener("click", send);
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+/* ---------- FINISH NOW / STOP ---------- */
+async function controlRequest(path, btn) {
+  if (!currentTaskId) return;
+  try {
+    const res = await fetch(`/api/tasks/${currentTaskId}/${path}`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    if (path === "finish") {
+      finishBtn.disabled = true;
+      finishBtn.textContent = "Synthesizing…";
+      setStatus(`task ${currentTaskId} synthesizing (FINISH NOW)…`);
+    } else {
+      stopBtn.disabled = true;
+      setStatus(`task ${currentTaskId} stopping…`);
+    }
+  } catch (e) {
+    addMsg("agent", `<div class="err">${esc(path)} failed: ${esc(e.message)}</div>`);
+  }
+}
+finishBtn.addEventListener("click", () => controlRequest("finish", finishBtn));
+stopBtn.addEventListener("click", () => controlRequest("stop", stopBtn));
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  $("#tab-" + t.dataset.tab).classList.add("active");
+  if (t.dataset.tab === "tasks") refreshTasks();
+  if (t.dataset.tab === "metrics") refreshMetrics();
+}));
+
+/* ---------- tasks tab ---------- */
+async function refreshTasks() {
+  try {
+    const res = await fetch("/api/tasks?limit=30");
+    const data = await res.json();
+    const list = $("#task-list");
+    list.innerHTML = "";
+    for (const t of data.tasks) {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      const status = t.failed ? `<span class="badge fail">failed</span>` : `<span class="badge ${t.status === "done" ? "pass" : "revise"}">${esc(t.status)}</span>`;
+      row.innerHTML = `<div class="t-top">${tierBadge(t.tier || "?")}${status}<span class="t-id">${esc(t.id)}</span></div><div class="t-prompt">${esc(t.prompt)}</div>`;
+      row.addEventListener("click", () => loadTask(t.id));
+      list.appendChild(row);
+    }
+  } catch (e) { /* ignore */ }
+}
+async function loadTask(id) {
+  try {
+    const res = await fetch(`/api/tasks/${id}`);
+    const data = await res.json();
+    if (!res.ok) return;
+    currentTaskId = id;
+    traceRoot.innerHTML = "";
+    for (const k in phaseEls) delete phaseEls[k];
+    setStatus(`task ${id} (${data.task.status})`);
+    data.events.filter(ev => ev.event_type !== "result").forEach(renderEvent);
+    const t = data.task;
+    if (t.status === "done")
+      addAgentMsg({
+        final_answer: t.final_answer, total_latency: t.latency, total_cost: t.cost,
+        tokens_prompt: t.tokens_prompt, tokens_completion: t.tokens_completion,
+        iterations: t.iterations, techniques_used: t.techniques, tier: t.tier,
+        escalated_from: t.escalated_from, failed: !!t.failed, error: t.error,
+        critique_history: [],
+      }, t.task_type, t.complexity);
+    document.querySelector('[data-tab="trace"]').click();
+  } catch (e) { /* ignore */ }
+}
+
+/* ---------- metrics tab ---------- */
+async function refreshMetrics() {
+  try {
+    const res = await fetch("/api/metrics");
+    const data = await res.json();
+    const d = data.dashboard;
+    const root = $("#metrics-root");
+    root.innerHTML = `
+      <h3 class="section">Overview</h3>
+      <table class="metrics">
+        <tr><th>tasks processed</th><td>${d.tasks_processed}</td></tr>
+        <tr><th>by tier</th><td>${JSON.stringify(d.tasks_by_tier)}</td></tr>
+        <tr><th>critique pass rate</th><td>${(d.critique_pass_rate * 100).toFixed(1)}%</td></tr>
+        <tr><th>avg refine iterations</th><td>${d.refine_iterations_avg}</td></tr>
+        <tr><th>escalation rate</th><td>${(d.escalation_rate * 100).toFixed(1)}%</td></tr>
+      </table>
+      <h3 class="section">Latency / cost per tier</h3>
+      <table class="metrics">
+        <tr><th>tier</th><th>avg latency (s)</th><th>avg cost ($)</th><th>tokens p/c</th></tr>
+        ${["lightning","deep","omega"].map(t => `<tr><td>${t}</td><td>${d.avg_latency_by_tier[t] || 0}</td><td>${d.avg_cost_by_tier[t] || 0}</td><td>${(d.tokens_by_tier[t] || {}).prompt || 0}/${(d.tokens_by_tier[t] || {}).completion || 0}</td></tr>`).join("")}
+      </table>
+      <h3 class="section">Technique usage</h3>
+      <table class="metrics">
+        ${Object.entries(d.technique_usage || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("") || "<tr><td>none yet</td><td></td></tr>"}
+      </table>
+      <h3 class="section">Failure modes</h3>
+      <table class="metrics">
+        ${Object.entries(d.failure_modes || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("") || "<tr><td>none</td><td></td></tr>"}
+      </table>
+      <h3 class="section">Token / cost totals (session)</h3>
+      <pre class="cost">${esc(JSON.stringify(data.cost.global || {}, null, 2))}</pre>`;
+    // header strip
+    $("#m-tasks").textContent = d.tasks_processed;
+    $("#m-l").textContent = d.tasks_by_tier.lightning || 0;
+    $("#m-d").textContent = d.tasks_by_tier.deep || 0;
+    $("#m-o").textContent = d.tasks_by_tier.omega || 0;
+    $("#m-pass").textContent = (d.critique_pass_rate * 100).toFixed(0) + "%";
+    $("#m-esc").textContent = Math.round(d.escalation_rate * 1000) / 10;
+  } catch (e) { /* ignore */ }
+}
+setInterval(refreshMetrics, 5000);
+refreshTasks();
+refreshMetrics();
+</script>
+</body>
+</html>
