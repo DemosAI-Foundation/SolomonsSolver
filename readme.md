@@ -1,8 +1,8 @@
-# SOLOMON AGENT
+# SOLOMON SOLVER
 
 **A Three-Tier Reasoning System for Complex Problem Solving**
 
-Solomon Agent is an advanced orchestration framework built around a local model. It applies research-backed reasoning techniques—Solomon's Paradox self-distancing, least-to-most decomposition, multi-agent debate, and chain-of-verification—while strictly managing context windows so reasoning depth is never sacrificed to token limits.
+Solomon Solver is an advanced orchestration framework built around a local model. It applies research-backed reasoning techniques—Solomon's Paradox self-distancing, least-to-most decomposition, multi-Solver debate, and chain-of-verification—while strictly managing context windows so reasoning depth is never sacrificed to token limits.
 
 ---
 
@@ -44,7 +44,7 @@ Solomon dynamically routes tasks based on complexity scoring (0.0 to 1.0).
 
 ### 🧠 Deep (Complexity 0.3 – 0.7)
 *For multi-step tasks, refactors, and debugging.*
-**Pipeline:** Task → Decompose → Isolated Sub-problems → Multi-agent Debate (3 task-focused analysts) → Self-refine loop → Answer.
+**Pipeline:** Task → Decompose → Isolated Sub-problems → Multi-Solver Debate (3 task-focused analysts) → Self-refine loop → Answer.
 
 ### 🌌 Omega (Complexity > 0.7)
 *For novel problems, deep questions, and high-stakes work.*
