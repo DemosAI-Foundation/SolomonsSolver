@@ -1,8 +1,8 @@
-# SOLOMON SOLVER
+# SOLOMONS SOLVER
 
 **A Three-Tier Reasoning System for Complex Problem Solving**
 
-Solomon Solver is an advanced orchestration framework built around a local model. It applies research-backed reasoning techniques—Solomon's Paradox self-distancing, least-to-most decomposition, multi-Solver debate, and chain-of-verification—while strictly managing context windows so reasoning depth is never sacrificed to token limits.
+Solomons Solver is an advanced orchestration framework built around a local model. It applies research-backed reasoning techniques—Solomon's Paradox self-distancing, least-to-most decomposition, multi-Solver debate, and chain-of-verification—while strictly managing context windows so reasoning depth is never sacrificed to token limits.
 
 ---
 
