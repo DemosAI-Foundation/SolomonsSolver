@@ -76,4 +76,4 @@ Detects abstract, high-depth questions with low word counts. Before decompositio
 
 ---
 
-*Built for Qwen3 27B (llama.cpp / OpenAI-compatible endpoint) | Context: 131K Tokens*
+*Built for OpenAI-compatible local endpoint | Context: 131K Tokens*
